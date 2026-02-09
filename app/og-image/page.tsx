@@ -4,6 +4,19 @@ export default function OGImage() {
   return (
     <div
       style={{
+        width: "100vw",
+        height: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#0a0a0b",
+        overflow: "hidden",
+        margin: 0,
+        padding: 0,
+      }}
+    >
+    <div
+      style={{
         width: 1200,
         height: 630,
         background: "#0a0a0b",
@@ -218,7 +231,7 @@ export default function OGImage() {
       <div
         style={{
           position: "absolute",
-          bottom: 28,
+          bottom: 44,
           display: "flex",
           alignItems: "center",
           gap: 8,
@@ -235,6 +248,7 @@ export default function OGImage() {
         dangerouslySetInnerHTML={{
           __html: `
           @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap');
+          html, body { margin: 0; padding: 0; overflow: hidden; background: #0a0a0b; }
           [data-nextjs-dialog-overlay],
           [data-nextjs-dialog],
           nextjs-portal,
@@ -244,6 +258,7 @@ export default function OGImage() {
         `,
         }}
       />
+    </div>
     </div>
   );
 }
