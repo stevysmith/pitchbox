@@ -35,3 +35,7 @@ npm run dev
 2. **Share** - Get a 4-letter room code, share with your team
 3. **Play** - Everyone joins from their phone/laptop, game runs in real-time
 4. **Vibe** - 4-6 rounds, 5 minutes total, instant laughs
+
+## License
+
+This project is licensed under the [PolyForm Shield License 1.0.0](LICENSE). You can view, fork, and learn from the code, but you may not use it to build a competing product.
