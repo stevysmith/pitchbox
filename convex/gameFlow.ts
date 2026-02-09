@@ -34,7 +34,6 @@ PB.createCanvas(w?, h?)        // Creates full-viewport canvas, returns { canvas
 INPUT (ONLY these methods exist — do NOT use scroll, wheel, mousewheel, or any other input):
 PB.input    { left, right, up, down, action, pointerX, pointerY, pointerDown }
 PB.input.onTap(cb)             // cb(x, y) — USE THIS for "tap to shoot/fire/jump" mechanics
-PB.input.onSwipe(cb)           // cb(direction, distance) — direction: "left"|"right"|"up"|"down"
 
 AUDIO:
 PB.audio.beep() / .success() / .fail() / .collect() / .tick()
@@ -135,7 +134,7 @@ SAFETY RULES (prevent crashes):
 - ALWAYS initialize all object properties when pushing to arrays — never leave x/y/w/h undefined
 - Guard touch/pointer access: var t = e.touches ? e.touches[0] : e; if (!t) return;
 - Every spawned object MUST have all properties set at creation time (x, y, speed, etc.)
-- NEVER use scroll, wheel, mousewheel, or keyboard-only controls. Players are on phones. Use ONLY: PB.input.onTap, PB.input.onSwipe, PB.input.pointerDown/pointerX/pointerY, or PB.input arrow keys + action
+- NEVER use scroll, wheel, mousewheel, swipe, or keyboard-only controls. Players are on browsers. Use ONLY: PB.input.onTap, PB.input.pointerDown/pointerX/pointerY, or PB.input arrow keys + action. NEVER use onSwipe.
 
 == EXAMPLE: Catch Game (filled-in skeleton) ==
 <script>(function(){
@@ -320,7 +319,7 @@ BAD 7: "IDENTICAL TWINS" — Two rounds with the same mechanic (e.g., both are c
 == GENRE CATEGORIES (use 3+ different categories across 5 rounds!) ==
 PRECISION: Golf/aiming, slingshot launcher, target shooting gallery, bouncing ball aim, trail drawing
 RHYTHM: Tap-timing rhythm, simon says, pie slice timing, gear matching, pattern recognition
-REFLEXES: Whack-a-mole, fruit ninja swipe, reaction time test, bubble pop, light switch puzzle
+REFLEXES: Whack-a-mole, reaction time test, bubble pop, light switch puzzle, rapid tap target
 STRATEGY: Tower stacking, tetris-style fitting, conveyor belt sorting, color sorting, card matching
 SURVIVAL: Side-scroller runner, asteroid dodge, dodge game, flappy-style, shield defense
 CHAOS: Catch/dodge falling, space invaders, tug-of-war tapping, lane-switch racing, orbit/gravity
@@ -787,7 +786,7 @@ COMMON FIXES:
         else if (code.includes("runner") || (code.includes("jump") && code.includes("speed"))) types.push("runner");
         else if (code.includes("grid") || (code.includes("cols") && code.includes("rows"))) types.push("grid");
         else if (code.includes("ontap") || code.includes("whack")) types.push("tap");
-        else if (code.includes("onswipe") || code.includes("swipe")) types.push("swipe");
+        else if (code.includes("aim") || code.includes("slingshot")) types.push("aim");
         else if (code.includes("dodge") || code.includes("avoid")) types.push("dodge");
         else if (code.includes("shoot") || code.includes("bullet")) types.push("shooter");
         else types.push("other");

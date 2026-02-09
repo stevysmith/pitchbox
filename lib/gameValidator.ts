@@ -228,12 +228,11 @@ export function validateGameCode(gameCode: string): ValidationResult {
   // Mobile input check
   const hasMobileInput =
     inner.includes("onTap") ||
-    inner.includes("onSwipe") ||
     inner.includes("pointerDown") ||
     inner.includes("PB.input.left") ||
     inner.includes("PB.input.action");
   if (!hasMobileInput) {
-    issues.push("WARNING: No mobile input detected (onTap/onSwipe/pointerDown/PB.input) — game may be unplayable on mobile");
+    issues.push("WARNING: No input detected (onTap/pointerDown/PB.input) — game may be unplayable");
   }
 
   // Draw call estimation: warn about potential overload in loop
@@ -357,8 +356,8 @@ function detectGameType(code: string): string {
   if (code.includes("ontap") && !code.includes(".y +=")) {
     return "tap-target";
   }
-  if (code.includes("onswipe") || code.includes("swipe")) {
-    return "swipe-game";
+  if (code.includes("ontap") && code.includes("pointerdown")) {
+    return "tap-game";
   }
   if (code.includes("dodge") || code.includes("avoid")) {
     return "dodge";
