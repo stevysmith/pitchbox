@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PB Game Tester</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+  h1 { font-size: 24px; margin-bottom: 16px; }
+  .controls { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  textarea { width: 100%; height: 200px; background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 13px; resize: vertical; }
+  button { background: #6366f1; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+  button:hover { background: #4f46e5; }
+  button.danger { background: #ef4444; }
+  .test-frame { width: 100%; max-width: 800px; aspect-ratio: 16/10; border: 2px solid #334155; border-radius: 12px; background: #1a1a2e; margin: 16px auto; display: block; }
+  .report { background: #1e293b; border-radius: 8px; padding: 16px; margin-top: 16px; }
+  .report h3 { margin-bottom: 8px; }
+  .metric { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #334155; }
+  .metric:last-child { border-bottom: none; }
+  .pass { color: #4ade80; }
+  .warn { color: #fbbf24; }
+  .fail { color: #ef4444; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .badge.pass { background: #4ade8033; }
+  .badge.warn { background: #fbbf2433; }
+  .badge.fail { background: #ef444433; }
+  #log { background: #0f172a; padding: 12px; border-radius: 8px; margin-top: 12px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.6; }
+  .log-entry { padding: 2px 0; }
+  .log-entry.error { color: #ef4444; }
+  .log-entry.warn { color: #fbbf24; }
+  .log-entry.info { color: #38bdf8; }
+  .log-entry.success { color: #4ade80; }
+</style>
+</head>
+<body>
+<h1>PB Game Tester</h1>
+<p style="color:#94a3b8;margin-bottom:12px">Paste AI-generated gameCode below and click "Run Test" to validate game quality.</p>
+
+<textarea id="codeInput" placeholder="Paste <script>...</script> game code here..."></textarea>
+
+<div class="controls">
+  <button onclick="runTest()">Run Test</button>
+  <button onclick="runAllChecks()" style="background:#059669">Full Validation</button>
+  <button onclick="stopTest()" class="danger">Stop</button>
+  <label style="display:flex;align-items:center;gap:6px;color:#94a3b8;font-size:14px">
+    <input type="number" id="testDuration" value="10" min="3" max="60" style="width:60px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:4px;padding:4px 8px">
+    seconds
+  </label>
+</div>
+
+<iframe id="testFrame" class="test-frame" sandbox="allow-scripts"></iframe>
+
+<div class="report" id="report" style="display:none">
+  <h3>Quality Report</h3>
+  <div id="metrics"></div>
+</div>
+
+<div id="log"></div>
+
+<script>
+const SDK_CODE = `
+<script>
+(function() {
+  "use strict";
+  var _score = 0, _started = false, _ended = false;
+  var _player = { id: "test", name: "Tester", emoji: "🎮", color: "#3498db", index: 0 };
+  var _config = { timeLimit: 30, difficulty: 1, theme: "" };
+  var _sprites = {}, _theme = { emoji: "🎮", primaryColor: "#6c5ce7", secondaryColor: "#00cec9", accentColor: "#fdcb6e" };
+  var _onStartCb = null, _onEndCb = null, _canvas = null, _ctx = null, _imageCache = {};
+  var _input = { left: false, right: false, up: false, down: false, action: false, pointerX: 200, pointerY: 300, pointerDown: false, _tapCbs: [], _swipeCbs: [], onTap: function(cb){_input._tapCbs.push(cb);}, onSwipe: function(cb){_input._swipeCbs.push(cb);} };
+  var _audioCtx = null;
+  function _getAudio(){if(!_audioCtx){try{_audioCtx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return _audioCtx;}
+  function _playTone(f,d,t,v){var c=_getAudio();if(!c)return;var o=c.createOscillator();var g=c.createGain();o.type=t||"square";o.frequency.value=f;g.gain.value=v||0.15;g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+(d||0.1));o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+(d||0.1));}
+  var _audio = { beep:function(){_playTone(440,0.08,"square",0.12);},success:function(){_playTone(523,0.1,"sine",0.15);},fail:function(){_playTone(200,0.2,"sawtooth",0.12);},collect:function(){_playTone(880,0.06,"square",0.1);},tick:function(){_playTone(1000,0.03,"sine",0.08);} };
+  function _random(a,b){return Math.random()*(b-a)+a;}
+  function _randomInt(a,b){return Math.floor(_random(a,b+1));}
+  function _lerp(a,b,t){return a+(b-a)*t;}
+  function _distance(x1,y1,x2,y2){var dx=x2-x1,dy=y2-y1;return Math.sqrt(dx*dx+dy*dy);}
+  function _clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+  function _loadImage(u){if(_imageCache[u])return Promise.resolve(_imageCache[u]);return new Promise(function(r,j){var i=new Image();i.crossOrigin="anonymous";i.onload=function(){_imageCache[u]=i;r(i);};i.onerror=function(){j(new Error("Failed"));};i.src=u;});}
+  function _createCanvas(w,h){if(_canvas)return{canvas:_canvas,ctx:_ctx};var dpr=window.devicePixelRatio||1;_canvas=document.createElement("canvas");var width=w||window.innerWidth;var height=h||window.innerHeight;_canvas.width=width*dpr;_canvas.height=height*dpr;_canvas.style.width=width+"px";_canvas.style.height=height+"px";_canvas.style.display="block";_canvas.style.touchAction="none";document.body.appendChild(_canvas);_ctx=_canvas.getContext("2d");_ctx.scale(dpr,dpr);return{canvas:_canvas,ctx:_ctx,width:width,height:height};}
+  document.addEventListener("keydown",function(e){if(e.key==="ArrowLeft"||e.key==="a")_input.left=true;if(e.key==="ArrowRight"||e.key==="d")_input.right=true;if(e.key==="ArrowUp"||e.key==="w")_input.up=true;if(e.key==="ArrowDown"||e.key==="s")_input.down=true;if(e.key===" "||e.key==="Enter")_input.action=true;});
+  document.addEventListener("keyup",function(e){if(e.key==="ArrowLeft"||e.key==="a")_input.left=false;if(e.key==="ArrowRight"||e.key==="d")_input.right=false;if(e.key==="ArrowUp"||e.key==="w")_input.up=false;if(e.key==="ArrowDown"||e.key==="s")_input.down=false;if(e.key===" "||e.key==="Enter")_input.action=false;});
+  function _getPointerPos(e){var t=e.touches?e.touches[0]:e;if(!t)return;_input.pointerX=t.clientX;_input.pointerY=t.clientY;}
+  document.addEventListener("mousedown",function(e){_input.pointerDown=true;_getPointerPos(e);_input._tapCbs.forEach(function(cb){cb(e.clientX,e.clientY);});});
+  document.addEventListener("mouseup",function(){_input.pointerDown=false;});
+  document.addEventListener("mousemove",function(e){_getPointerPos(e);});
+  function _drawText(c,t,x,y,o){o=o||{};c.save();c.font=(o.font||("bold "+(o.size||16)+"px system-ui, sans-serif"));c.textAlign=o.align||"center";c.textBaseline=o.baseline||"middle";if(o.outline){c.strokeStyle=o.outline;c.lineWidth=o.outlineWidth||3;c.strokeText(t,x,y);}c.fillStyle=o.color||"#fff";c.fillText(t,x,y);c.restore();}
+  function _drawEmoji(c,e,x,y,s){s=s||32;c.save();c.font=s+"px serif";c.textAlign="center";c.textBaseline="middle";c.fillText(e,x,y);c.restore();}
+  function _drawRoundRect(c,x,y,w,h,r){r=Math.min(r||8,w/2,h/2);c.beginPath();c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y);c.closePath();}
+  function _send(m){window.parent.postMessage(m,"*");}
+  setInterval(function(){if(_started&&!_ended)_send({type:"HEARTBEAT"});},2000);
+  window.addEventListener("message",function(e){var d=e.data;if(!d||!d.type)return;if(d.type==="GAME_INIT"){if(d.payload.player)_player=d.payload.player;if(d.payload.config)_config=d.payload.config;if(d.payload.sprites)_sprites=d.payload.sprites;if(d.payload.theme)_theme=d.payload.theme;}else if(d.type==="GAME_START"){_started=true;if(_onStartCb)try{_onStartCb();}catch(err){_send({type:"GAME_ERROR",payload:{message:"onStart: "+err.message}});}}else if(d.type==="GAME_END"){_ended=true;if(_onEndCb)try{_onEndCb();}catch(err){}_send({type:"GAME_COMPLETE",payload:{score:_score}});}});
+
+  // Juice system
+  var _shakeX=0,_shakeY=0,_shakeMag=0,_shakeDecay=0.85;
+  function _shake(m,d){_shakeMag=m||8;_shakeDecay=d||0.85;}
+  function _updateShake(){if(_shakeMag>0.5){_shakeX=(Math.random()-0.5)*_shakeMag*2;_shakeY=(Math.random()-0.5)*_shakeMag*2;_shakeMag*=_shakeDecay;}else{_shakeX=0;_shakeY=0;_shakeMag=0;}}
+  var _particles=[];
+  function _spawnParticles(x,y,o){o=o||{};var c=o.count||8;for(var i=0;i<c;i++){var a=(Math.PI*2*i)/c+_random(-0.3,0.3);_particles.push({x:x,y:y,vx:Math.cos(a)*(o.speed||3)*_random(0.5,1.5),vy:Math.sin(a)*(o.speed||3)*_random(0.5,1.5),life:o.life||30,maxLife:o.life||30,color:o.color||"#ffd700",size:o.size||4});}}
+  function _updateParticles(){for(var i=_particles.length-1;i>=0;i--){var p=_particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.life--;if(p.life<=0)_particles.splice(i,1);}}
+  function _drawParticles(c){for(var i=0;i<_particles.length;i++){var p=_particles[i];c.globalAlpha=p.life/p.maxLife;c.fillStyle=p.color;c.beginPath();c.arc(p.x,p.y,p.size*(p.life/p.maxLife),0,Math.PI*2);c.fill();}c.globalAlpha=1;}
+  var _floaters=[];
+  function _floatText(t,x,y,o){o=o||{};_floaters.push({text:t,x:x,y:y,vy:o.vy||-2,life:o.life||40,maxLife:o.life||40,color:o.color||"#fff",size:o.size||20});}
+  function _updateFloaters(){for(var i=_floaters.length-1;i>=0;i--){_floaters[i].y+=_floaters[i].vy;_floaters[i].life--;if(_floaters[i].life<=0)_floaters.splice(i,1);}}
+  function _drawFloaters(c){for(var i=0;i<_floaters.length;i++){var f=_floaters[i];c.globalAlpha=f.life/f.maxLife;_drawText(c,f.text,f.x,f.y,{size:f.size,color:f.color,outline:"#000",outlineWidth:2});}c.globalAlpha=1;}
+  var _flashAlpha=0,_flashColor="#fff";
+  function _flash(cl,d){_flashColor=cl||"#fff";_flashAlpha=1;var dc=1/((d||10));var fi=setInterval(function(){_flashAlpha-=dc;if(_flashAlpha<=0){_flashAlpha=0;clearInterval(fi);}},16);}
+  function _drawFlash(c,W,H){if(_flashAlpha>0){c.globalAlpha=_flashAlpha*0.4;c.fillStyle=_flashColor;c.fillRect(0,0,W,H);c.globalAlpha=1;}}
+  function _drawTimer(c,tl,tt,W){var p=tl/tt;var bW=W-20;c.fillStyle="rgba(0,0,0,0.3)";_drawRoundRect(c,10,10,bW,6,3);c.fill();c.fillStyle=p>0.3?"#4ade80":p>0.15?"#fbbf24":"#ef4444";_drawRoundRect(c,10,10,bW*Math.max(0,p),6,3);c.fill();}
+  function _updateJuice(){_updateShake();_updateParticles();_updateFloaters();}
+  function _drawJuice(c,W,H){_drawParticles(c);_drawFloaters(c);_drawFlash(c,W,H);}
+  function _rectCollide(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+  function _circleCollide(x1,y1,r1,x2,y2,r2){var dx=x2-x1,dy=y2-y1;return dx*dx+dy*dy<(r1+r2)*(r1+r2);}
+  function _easeOutBounce(t){if(t<1/2.75)return 7.5625*t*t;if(t<2/2.75){t-=1.5/2.75;return 7.5625*t*t+0.75;}if(t<2.5/2.75){t-=2.25/2.75;return 7.5625*t*t+0.9375;}t-=2.625/2.75;return 7.5625*t*t+0.984375;}
+  function _easeOutElastic(t){if(t===0||t===1)return t;return Math.pow(2,-10*t)*Math.sin((t-0.075)*(2*Math.PI)/0.3)+1;}
+  function _easeOutCubic(t){return 1-Math.pow(1-t,3);}
+  function _easeInOutQuad(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+
+  window.PB={
+    ready:function(){_send({type:"GAME_READY"});},
+    onStart:function(cb){_onStartCb=cb;if(_started)cb();},
+    onEnd:function(cb){_onEndCb=cb;},
+    setScore:function(n){_score=Math.max(0,Math.floor(n));_send({type:"SCORE_UPDATE",payload:{score:_score}});},
+    addScore:function(n){_score=Math.max(0,_score+Math.floor(n));_send({type:"SCORE_UPDATE",payload:{score:_score}});},
+    endGame:function(f){if(_ended)return;_ended=true;if(f!==undefined)_score=Math.max(0,Math.floor(f));_send({type:"GAME_COMPLETE",payload:{score:_score}});},
+    get player(){return _player;},get config(){return _config;},get sprites(){return _sprites;},get input(){return _input;},get audio(){return _audio;},get theme(){return _theme;},
+    createCanvas:_createCanvas,loadImage:_loadImage,
+    text:_drawText,emoji:_drawEmoji,roundRect:_drawRoundRect,
+    shake:_shake,get shakeX(){return _shakeX;},get shakeY(){return _shakeY;},
+    particles:_spawnParticles,float:_floatText,flash:_flash,
+    drawTimer:_drawTimer,updateJuice:_updateJuice,drawJuice:_drawJuice,
+    rectCollide:_rectCollide,circleCollide:_circleCollide,
+    easeOutBounce:_easeOutBounce,easeOutElastic:_easeOutElastic,easeOutCubic:_easeOutCubic,easeInOutQuad:_easeInOutQuad,
+    random:_random,randomInt:_randomInt,lerp:_lerp,distance:_distance,clamp:_clamp
+  };
+  window.addEventListener("error",function(e){_send({type:"GAME_ERROR",payload:{message:e.message||"Unknown error"}});});
+})();
+<` + `/script>`;
+
+  // --- Test harness state ---
+  var testState = {
+    ready: false,
+    started: false,
+    scores: [],
+    errors: [],
+    heartbeats: 0,
+    messages: [],
+    startTime: null,
+    frameCount: 0,
+    lastFrameTime: 0,
+    fps: [],
+  };
+
+  // Track frames via RAF
+  var _origRAF = window.requestAnimationFrame;
+  window.requestAnimationFrame = function(cb) {
+    testState.frameCount++;
+    var now = performance.now();
+    if (testState.lastFrameTime > 0) {
+      var delta = now - testState.lastFrameTime;
+      if (delta > 0) testState.fps.push(1000 / delta);
+    }
+    testState.lastFrameTime = now;
+    return _origRAF.call(window, cb);
+  };
+
+  function runTest() {
+    var code = document.getElementById("codeInput").value.trim();
+    if (!code) { addLog("No code to test", "error"); return; }
+
+    // Reset
+    testState = { ready: false, started: false, scores: [], errors: [], heartbeats: 0, messages: [], startTime: null, frameCount: 0, lastFrameTime: 0, fps: [] };
+    document.getElementById("log").innerHTML = "";
+    document.getElementById("report").style.display = "none";
+
+    var duration = parseInt(document.getElementById("testDuration").value) || 10;
+
+    // Static analysis first
+    staticAnalysis(code);
+
+    // Build srcdoc
+    var srcdoc = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><style>*{margin:0;padding:0;box-sizing:border-box;}html,body{width:100%;height:100%;overflow:hidden;background:#1a1a2e;}</style>' + SDK_CODE + '</head><body>' + code + '</body></html>';
+
+    var frame = document.getElementById("testFrame");
+    frame.srcdoc = srcdoc;
+
+    addLog("Loading game...", "info");
+
+    // Set up timeout for GAME_READY
+    var readyTimeout = setTimeout(function() {
+      if (!testState.ready) {
+        addLog("FAIL: Game never called PB.ready() after 5s", "error");
+        testState.errors.push("No PB.ready()");
+        generateReport();
+      }
+    }, 5000);
+
+    // Listen for messages
+    window.addEventListener("message", function handler(e) {
+      var d = e.data;
+      if (!d || !d.type) return;
+
+      testState.messages.push({ type: d.type, time: Date.now(), payload: d.payload });
+
+      if (d.type === "GAME_READY") {
+        testState.ready = true;
+        clearTimeout(readyTimeout);
+        addLog("GAME_READY received", "success");
+
+        // Send GAME_INIT
+        setTimeout(function() {
+          frame.contentWindow.postMessage({
+            type: "GAME_INIT",
+            payload: {
+              player: { id: "test", name: "Tester", emoji: "🎮", color: "#3498db", index: 0 },
+              config: { timeLimit: duration, difficulty: 2, theme: "test" },
+              sprites: {},
+              theme: { emoji: "🎮", primaryColor: "#6c5ce7", secondaryColor: "#00cec9", accentColor: "#fdcb6e" }
+            }
+          }, "*");
+
+          // Send GAME_START after brief delay
+          setTimeout(function() {
+            testState.startTime = Date.now();
+            testState.started = true;
+            frame.contentWindow.postMessage({ type: "GAME_START" }, "*");
+            addLog("GAME_START sent — game is playing", "info");
+
+            // End game after duration
+            setTimeout(function() {
+              frame.contentWindow.postMessage({ type: "GAME_END" }, "*");
+              addLog("GAME_END sent", "info");
+
+              setTimeout(function() {
+                window.removeEventListener("message", handler);
+                generateReport();
+              }, 500);
+            }, duration * 1000);
+          }, 200);
+        }, 100);
+      }
+      else if (d.type === "HEARTBEAT") {
+        testState.heartbeats++;
+      }
+      else if (d.type === "SCORE_UPDATE") {
+        testState.scores.push(d.payload?.score || 0);
+        addLog("Score: " + (d.payload?.score || 0), "info");
+      }
+      else if (d.type === "GAME_COMPLETE") {
+        addLog("GAME_COMPLETE — final score: " + (d.payload?.score || 0), "success");
+      }
+      else if (d.type === "GAME_ERROR") {
+        testState.errors.push(d.payload?.message || "Unknown");
+        addLog("ERROR: " + (d.payload?.message || "Unknown"), "error");
+      }
+    });
+  }
+
+  function stopTest() {
+    document.getElementById("testFrame").srcdoc = "";
+    addLog("Test stopped", "warn");
+  }
+
+  function staticAnalysis(code) {
+    addLog("=== Static Analysis ===", "info");
+    var inner = code.replace(/<\/?script>/g, "");
+
+    var checks = [
+      { name: "PB.ready()", test: inner.includes("PB.ready"), critical: true },
+      { name: "PB.onStart()", test: inner.includes("PB.onStart"), critical: true },
+      { name: "requestAnimationFrame", test: inner.includes("requestAnimationFrame"), critical: true },
+      { name: "PB.createCanvas()", test: inner.includes("PB.createCanvas"), critical: false },
+      { name: "Scoring (addScore/setScore)", test: inner.includes("PB.addScore") || inner.includes("PB.setScore"), critical: false },
+      { name: "Audio (PB.audio.*)", test: inner.includes("PB.audio."), critical: false },
+      { name: "Juice: particles", test: inner.includes("PB.particles"), critical: false },
+      { name: "Juice: shake", test: inner.includes("PB.shake"), critical: false },
+      { name: "Juice: float text", test: inner.includes("PB.float"), critical: false },
+      { name: "Juice: updateJuice", test: inner.includes("PB.updateJuice"), critical: false },
+      { name: "Juice: drawJuice", test: inner.includes("PB.drawJuice"), critical: false },
+      { name: "Collision helpers", test: inner.includes("PB.rectCollide") || inner.includes("PB.circleCollide"), critical: false },
+      { name: "IIFE wrapper", test: inner.includes("(function()") || inner.includes("(function ("), critical: false },
+      { name: "No forbidden APIs", test: !inner.includes("alert(") && !inner.includes("confirm("), critical: true },
+    ];
+
+    var passed = 0, failed = 0;
+    checks.forEach(function(c) {
+      if (c.test) {
+        addLog("  PASS: " + c.name, "success");
+        passed++;
+      } else {
+        addLog("  " + (c.critical ? "FAIL" : "WARN") + ": " + c.name, c.critical ? "error" : "warn");
+        failed++;
+      }
+    });
+
+    var lines = inner.split("\n").length;
+    addLog("  Code: " + lines + " lines, " + inner.length + " chars", "info");
+    addLog("  Static: " + passed + "/" + checks.length + " passed", passed === checks.length ? "success" : "warn");
+  }
+
+  function runAllChecks() {
+    runTest();
+  }
+
+  function generateReport() {
+    var report = document.getElementById("report");
+    var metrics = document.getElementById("metrics");
+    report.style.display = "block";
+
+    var avgFps = testState.fps.length > 0 ? testState.fps.reduce(function(a,b){return a+b;},0) / testState.fps.length : 0;
+    var minFps = testState.fps.length > 0 ? Math.min.apply(null, testState.fps) : 0;
+    var finalScore = testState.scores.length > 0 ? testState.scores[testState.scores.length - 1] : 0;
+    var scoreChanges = testState.scores.length;
+    var duration = testState.startTime ? (Date.now() - testState.startTime) / 1000 : 0;
+
+    var results = [
+      { label: "Game Ready", value: testState.ready ? "Yes" : "No", status: testState.ready ? "pass" : "fail" },
+      { label: "Game Started", value: testState.started ? "Yes" : "No", status: testState.started ? "pass" : "fail" },
+      { label: "Final Score", value: finalScore, status: finalScore > 0 ? "pass" : "warn" },
+      { label: "Score Updates", value: scoreChanges, status: scoreChanges > 3 ? "pass" : scoreChanges > 0 ? "warn" : "fail" },
+      { label: "Frames Rendered", value: testState.frameCount, status: testState.frameCount > 30 ? "pass" : "fail" },
+      { label: "Avg FPS", value: avgFps.toFixed(1), status: avgFps > 50 ? "pass" : avgFps > 30 ? "warn" : "fail" },
+      { label: "Min FPS", value: minFps.toFixed(1), status: minFps > 30 ? "pass" : minFps > 15 ? "warn" : "fail" },
+      { label: "Heartbeats", value: testState.heartbeats, status: testState.heartbeats > 0 ? "pass" : "warn" },
+      { label: "Errors", value: testState.errors.length, status: testState.errors.length === 0 ? "pass" : "fail" },
+      { label: "Duration", value: duration.toFixed(1) + "s", status: "pass" },
+    ];
+
+    metrics.innerHTML = results.map(function(r) {
+      return '<div class="metric"><span>' + r.label + '</span><span class="badge ' + r.status + '">' + r.value + '</span></div>';
+    }).join("");
+
+    // Overall grade
+    var passCount = results.filter(function(r){return r.status === "pass";}).length;
+    var grade = passCount >= 9 ? "A" : passCount >= 7 ? "B" : passCount >= 5 ? "C" : "F";
+    var gradeClass = grade === "A" ? "pass" : grade === "B" ? "warn" : "fail";
+    metrics.innerHTML += '<div class="metric" style="font-size:18px;font-weight:bold"><span>Overall Grade</span><span class="badge ' + gradeClass + '" style="font-size:18px;padding:4px 16px">' + grade + '</span></div>';
+
+    addLog("=== Report Generated: Grade " + grade + " (" + passCount + "/" + results.length + " passed) ===", gradeClass === "pass" ? "success" : "warn");
+  }
+
+  function addLog(msg, type) {
+    var log = document.getElementById("log");
+    var entry = document.createElement("div");
+    entry.className = "log-entry " + (type || "");
+    entry.textContent = "[" + new Date().toLocaleTimeString() + "] " + msg;
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+  }
+</script>
+</body>
+</html>

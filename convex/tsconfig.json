@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "target": "ESNext",
+    "moduleResolution": "bundler"
+  },
+  "include": ["./**/*"],
+  "exclude": ["./_generated"]
+}
