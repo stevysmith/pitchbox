@@ -3,13 +3,46 @@ import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://pitchbox.onrender.com"),
   title: "pitch.box — AI Party Games for Teams",
   description:
-    "Drop a prompt, get a game, play in 5 minutes. AI-powered party games for remote teams.",
+    "Drop a vibe, get a game. AI-generated multiplayer party games your team can play in 5 minutes. No downloads. No rules to read.",
   openGraph: {
-    title: "pitch.box",
-    description: "AI-powered party games for remote teams",
+    title: "pitch.box — drop a vibe, get a game",
+    description:
+      "AI-generated multiplayer party games your team can play in 5 minutes. No downloads. No rules to read.",
+    url: "https://pitchbox.onrender.com",
+    siteName: "pitch.box",
+    locale: "en_US",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "pitch.box — drop a vibe, get a game. AI-generated multiplayer party games.",
+        type: "image/png",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "pitch.box — drop a vibe, get a game",
+    description:
+      "AI-generated multiplayer party games your team can play in 5 minutes. No downloads. No rules to read.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "pitch.box — drop a vibe, get a game. AI-generated multiplayer party games.",
+      },
+    ],
+  },
+  appleWebApp: {
+    title: "pitch.box",
+    statusBarStyle: "black-translucent",
+    capable: true,
   },
 };
 
